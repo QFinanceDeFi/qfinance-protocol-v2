@@ -30,7 +30,6 @@ contract WrapRegistry {
         IERC20 baseToken = IERC20(token);
         baseToken.transferFrom(msg.sender, address(this), amount);
         wToken.mint(msg.sender, amount);
-        wToken.approveFactory(msg.sender, type(uint).max);
     }
     
     function burnWrapped(address token, uint amount) public {
