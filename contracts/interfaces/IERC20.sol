@@ -80,9 +80,15 @@ interface IERC20 {
         uint256 amount
     ) external returns (bool);
 
+    /**
+      * @dev Public function to use the _mint function. Minting can only be initiated by the registry address.
+    */
     function mint(address receiver, uint amount) external;
+
+    /**
+      * @dev Public function to use the _burn function. Burning can only be initiated by the registry address.
+    */
     function burn(address burner, uint amount) external;
-    function approveFactory(address account, uint amount) external returns (bool);
 
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
