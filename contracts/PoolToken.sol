@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "./interfaces/IERC20.sol";
 import "./TokenBase.sol";
 
-abstract contract PoolToken is TokenBase, IERC20 {
+abstract contract PoolToken is TokenBase {
     string private _name = "QPool Deposit Token";
     string private _symbol = "QPDT";
     uint8 private _decimals = 18;

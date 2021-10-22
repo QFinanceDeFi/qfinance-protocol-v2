@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 import "./PoolToken.sol";
 import "./PoolMath.sol";
 
-abstract contract Pool is PoolToken, PoolMath {
+contract Pool is PoolToken, PoolMath {
     struct Record {
         bool bound; // is token bound to pool
         uint256 index; // private

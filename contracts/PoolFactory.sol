@@ -40,7 +40,7 @@ contract PoolFactory {
 
     function collect(Pool pool) external {
         require(msg.sender == _master, "Not owner");
-        uint256 collected = IERC20(pool).balanceOf(address(this));
+        uint256 collected = IERC20(address(pool)).balanceOf(address(this));
         bool transferMade = pool.transfer(_master, collected);
         require(transferMade, "Transfer failed");
     }
