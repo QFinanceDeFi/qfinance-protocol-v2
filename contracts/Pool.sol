@@ -6,106 +6,83 @@ import "./PoolToken.sol";
 import "./PoolMath.sol";
 
 contract Pool is PoolToken, PoolMath {
+
     struct Record {
-        bool bound; // is token bound to pool
-        uint256 index; // private
         uint256 denorm; // denormalized weight
         uint256 balance;
+        uint8 index;
+        uint8 bound;
     }
 
-    event Swap(
-        address indexed caller,
-        address indexed tokenIn,
-        address indexed tokenOut,
-        uint256 tokenAmountIn,
-        uint256 tokenAmountOut
-    );
-
-    event Join(
-        address indexed caller,
-        address indexed tokenIn,
-        uint256 tokenAmountIn
-    );
-
-    event Exit(
-        address indexed caller,
-        address indexed tokenOut,
-        uint256 tokenAmountOut
-    );
-
-    event Call(
-        bytes4 indexed sig,
-        address indexed caller,
-        bytes data
-    ) anonymous;
-
-    modifier _logs_() {
-        emit Call(msg.sig, msg.sender, msg.data);
-        _;
+    struct PoolData {
+        uint160 factory;
+        uint64 swapFee;
+        uint8 mutex;
+        uint8 totalTokens;
+        uint8 finalized;
     }
 
-    modifier _lock_() {
-        require(!_mutex, "ERR_REENTRY");
-        _mutex = true;
-        _;
-        _mutex = false;
-    }
+    PoolData private poolData;
 
-    modifier _viewlock_() {
-        require(!_mutex, "ERR_REENTRY");
-        _;
-    }
+    mapping(uint256 => address) private _tokens;
 
-    bool private _mutex;
-
-    address private _factory; // Factory address to push token exitFee to
-    address private _controller; // has CONTROL role
-
-    // `setSwapFee` and `finalize` require CONTROL
-    // `finalize` sets `PUBLIC can SWAP`, `PUBLIC can JOIN`
-    uint256 private _swapFee;
-    bool private _finalized;
-
-    address[] private _tokens;
     mapping(address => Record) private _records;
     uint256 private _totalWeight;
 
-    constructor () {
-        _controller = msg.sender;
-        _factory = msg.sender;
-        _swapFee = MIN_FEE;
-        _finalized = false;
+    constructor() {
+        poolData.factory = uint160(msg.sender);
+        poolData.swapFee = uint64(MIN_FEE);
+        poolData.mutex = uint8(1);
+        poolData.totalTokens = uint8(0);
+        poolData.finalized = uint8(1);
     }
 
     function isFinalized() external view returns (bool) {
-        return _finalized;
+        return poolData.finalized == 2 ? true : false;
     }
 
     function isBound(address t) external view returns (bool) {
-        return _records[t].bound;
+        return _records[t].bound == 2 ? true : false;
     }
 
     function getNumTokens() external view returns (uint256) {
-        return _tokens.length;
+        return poolData.totalTokens;
+    }
+
+    function getToken(uint256 index) internal view returns (address) {
+        return _tokens[index];
     }
 
     function getCurrentTokens()
         external
         view
         _viewlock_
-        returns (address[] memory tokens)
+        returns (address[] memory)
     {
-        return _tokens;
+        address[] memory tokens = new address[](poolData.totalTokens);
+
+        for (uint256 i; i < poolData.totalTokens; i++) {
+            tokens[i] = getToken(i + 1);
+        }
+
+        return tokens;
     }
 
     function getFinalTokens()
         external
         view
         _viewlock_
-        returns (address[] memory tokens)
+        returns (address[] memory)
     {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        return _tokens;
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
+
+        address[] memory tokens = new address[](poolData.totalTokens);
+
+        for (uint256 i; i < poolData.totalTokens; i++) {
+            tokens[i] = getToken(i + 1);
+        }
+
+        return tokens;
     }
 
     function getDenormalizedWeight(address token)
@@ -114,7 +91,7 @@ contract Pool is PoolToken, PoolMath {
         _viewlock_
         returns (uint256)
     {
-        require(_records[token].bound, "ERR_NOT_BOUND");
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
         return _records[token].denorm;
     }
 
@@ -133,7 +110,7 @@ contract Pool is PoolToken, PoolMath {
         _viewlock_
         returns (uint256)
     {
-        require(_records[token].bound, "ERR_NOT_BOUND");
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
         uint256 denorm = _records[token].denorm;
         return div(denorm, _totalWeight);
     }
@@ -144,37 +121,26 @@ contract Pool is PoolToken, PoolMath {
         _viewlock_
         returns (uint256)
     {
-        require(_records[token].bound, "ERR_NOT_BOUND");
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
         return _records[token].balance;
     }
 
     function getSwapFee() external view _viewlock_ returns (uint256) {
-        return _swapFee;
-    }
-
-    function getController() external view _viewlock_ returns (address) {
-        return _controller;
+        return poolData.swapFee;
     }
 
     function setSwapFee(uint256 swapFee) external _logs_ _lock_ {
-        require(!_finalized, "ERR_IS_FINALIZED");
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
+        require(poolData.finalized == 1, "ERR_IS_FINALIZED");
         require(swapFee >= MIN_FEE, "ERR_MIN_FEE");
         require(swapFee <= MAX_FEE, "ERR_MAX_FEE");
-        _swapFee = swapFee;
-    }
-
-    function setController(address manager) external _logs_ _lock_ {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        _controller = manager;
+        poolData.swapFee = uint64(swapFee);
     }
 
     function finalize() external _logs_ _lock_ {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(!_finalized, "ERR_IS_FINALIZED");
-        require(_tokens.length >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
+        require(poolData.finalized == 1, "ERR_IS_FINALIZED");
+        require(poolData.totalTokens >= MIN_BOUND_TOKENS, "ERR_MIN_TOKENS");
 
-        _finalized = true;
+        poolData.finalized = 2;
 
         _mintPoolShare(INIT_POOL_SUPPLY);
         _pushPoolShare(msg.sender, INIT_POOL_SUPPLY);
@@ -187,21 +153,22 @@ contract Pool is PoolToken, PoolMath {
     )
         external
         _logs_
-    // _lock_  Bind does not lock because it jumps to `rebind`, which does
     {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(!_records[token].bound, "ERR_IS_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
+        require(_records[token].bound == 1, "ERR_IS_BOUND");
+        require(poolData.finalized == 1, "ERR_IS_FINALIZED");
+        require(poolData.totalTokens < MAX_BOUND_TOKENS, "ERR_MAX_TOKENS");
 
-        require(_tokens.length < MAX_BOUND_TOKENS, "ERR_MAX_TOKENS");
+        // Increment prior to setting record index so mapping starts at 1
+        poolData.totalTokens += 1;
 
         _records[token] = Record({
-            bound: true,
-            index: _tokens.length,
+            bound: 2,
+            index: poolData.totalTokens,
             denorm: 0, // balance and denorm will be validated
             balance: 0 // and set by `rebind`
         });
-        _tokens.push(token);
+
+        _tokens[poolData.totalTokens] = token;
         rebind(token, balance, denorm);
     }
 
@@ -210,10 +177,8 @@ contract Pool is PoolToken, PoolMath {
         uint256 balance,
         uint256 denorm
     ) public _logs_ _lock_ {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
-
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
+        require(poolData.finalized == 1, "ERR_IS_FINALIZED");
         require(denorm >= MIN_WEIGHT, "ERR_MIN_WEIGHT");
         require(denorm <= MAX_WEIGHT, "ERR_MAX_WEIGHT");
         require(balance >= MIN_BALANCE, "ERR_MIN_BALANCE");
@@ -242,14 +207,13 @@ contract Pool is PoolToken, PoolMath {
                 msg.sender,
                 sub(tokenBalanceWithdrawn, tokenExitFee)
             );
-            _pushUnderlying(token, _factory, tokenExitFee);
+            _pushUnderlying(token, address(poolData.factory), tokenExitFee);
         }
     }
 
     function unbind(address token) external _logs_ _lock_ {
-        require(msg.sender == _controller, "ERR_NOT_CONTROLLER");
-        require(_records[token].bound, "ERR_NOT_BOUND");
-        require(!_finalized, "ERR_IS_FINALIZED");
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
+        require(poolData.finalized == 1, "ERR_IS_FINALIZED");
 
         uint256 tokenBalance = _records[token].balance;
         uint256 tokenExitFee = mul(tokenBalance, EXIT_FEE);
@@ -259,24 +223,18 @@ contract Pool is PoolToken, PoolMath {
         // Swap the token-to-unbind with the last token,
         // then delete the last token
         uint256 index = _records[token].index;
-        uint256 last = _tokens.length - 1;
-        _tokens[index] = _tokens[last];
-        _records[_tokens[index]].index = index;
-        _tokens.pop();
-        _records[token] = Record({
-            bound: false,
-            index: 0,
-            denorm: 0,
-            balance: 0
-        });
+        _tokens[index] = _tokens[poolData.totalTokens];
+        _records[_tokens[index]].index = uint8(index);
+        poolData.totalTokens -= 1;
+        delete _records[token];
 
         _pushUnderlying(token, msg.sender, sub(tokenBalance, tokenExitFee));
-        _pushUnderlying(token, _factory, tokenExitFee);
+        _pushUnderlying(token, address(poolData.factory), tokenExitFee);
     }
 
     // Absorb any tokens that have been sent to this contract into the pool
     function gulp(address token) external _logs_ _lock_ {
-        require(_records[token].bound, "ERR_NOT_BOUND");
+        require(_records[token].bound == 2, "ERR_NOT_BOUND");
         _records[token].balance = IERC20(token).balanceOf(address(this));
     }
 
@@ -286,8 +244,8 @@ contract Pool is PoolToken, PoolMath {
         _viewlock_
         returns (uint256 spotPrice)
     {
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
         Record storage inRecord = _records[tokenIn];
         Record storage outRecord = _records[tokenOut];
         return
@@ -296,7 +254,7 @@ contract Pool is PoolToken, PoolMath {
                 inRecord.denorm,
                 outRecord.balance,
                 outRecord.denorm,
-                _swapFee
+                poolData.swapFee
             );
     }
 
@@ -306,8 +264,8 @@ contract Pool is PoolToken, PoolMath {
         _viewlock_
         returns (uint256 spotPrice)
     {
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
         Record storage inRecord = _records[tokenIn];
         Record storage outRecord = _records[tokenOut];
         return
@@ -325,16 +283,16 @@ contract Pool is PoolToken, PoolMath {
         _logs_
         _lock_
     {
-        require(_finalized, "ERR_NOT_FINALIZED");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
 
         uint256 poolTotal = totalSupply();
         uint256 ratio = div(poolAmountOut, poolTotal);
         require(ratio != 0, "ERR_MATH_APPROX");
 
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            address t = _tokens[i];
-            uint256 bal = _records[t].balance;
-            uint256 tokenAmountIn = mul(ratio, bal);
+        for (uint256 i; i < poolData.totalTokens; i++) {
+            address t = getToken(i + 1);
+            uint256 balance = _records[t].balance;
+            uint256 tokenAmountIn = mul(ratio, balance);
             require(tokenAmountIn != 0, "ERR_MATH_APPROX");
             require(tokenAmountIn <= maxAmountsIn[i], "ERR_LIMIT_IN");
             _records[t].balance = add(_records[t].balance, tokenAmountIn);
@@ -350,7 +308,7 @@ contract Pool is PoolToken, PoolMath {
         _logs_
         _lock_
     {
-        require(_finalized, "ERR_NOT_FINALIZED");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
 
         uint256 poolTotal = totalSupply();
         uint256 exitFee = mul(poolAmountIn, EXIT_FEE);
@@ -359,13 +317,13 @@ contract Pool is PoolToken, PoolMath {
         require(ratio != 0, "ERR_MATH_APPROX");
 
         _pullPoolShare(msg.sender, poolAmountIn);
-        _pushPoolShare(_factory, exitFee);
+        _pushPoolShare(address(poolData.factory), exitFee);
         _burnPoolShare(pAiAfterExitFee);
 
-        for (uint256 i = 0; i < _tokens.length; i++) {
-            address t = _tokens[i];
-            uint256 bal = _records[t].balance;
-            uint256 tokenAmountOut = mul(ratio, bal);
+        for (uint256 i; i < poolData.totalTokens; i++) {
+            address t = getToken(i + 1);
+            uint256 balance = _records[t].balance;
+            uint256 tokenAmountOut = mul(ratio, balance);
             require(tokenAmountOut != 0, "ERR_MATH_APPROX");
             require(tokenAmountOut >= minAmountsOut[i], "ERR_LIMIT_OUT");
             _records[t].balance = sub(_records[t].balance, tokenAmountOut);
@@ -386,8 +344,8 @@ contract Pool is PoolToken, PoolMath {
         _lock_
         returns (uint256 tokenAmountOut, uint256 spotPriceAfter)
     {
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
 
         Record storage inRecord = _records[address(tokenIn)];
         Record storage outRecord = _records[address(tokenOut)];
@@ -402,7 +360,7 @@ contract Pool is PoolToken, PoolMath {
             inRecord.denorm,
             outRecord.balance,
             outRecord.denorm,
-            _swapFee
+            poolData.swapFee
         );
         require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
 
@@ -412,7 +370,7 @@ contract Pool is PoolToken, PoolMath {
             outRecord.balance,
             outRecord.denorm,
             tokenAmountIn,
-            _swapFee
+            poolData.swapFee
         );
         require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
 
@@ -424,7 +382,7 @@ contract Pool is PoolToken, PoolMath {
             inRecord.denorm,
             outRecord.balance,
             outRecord.denorm,
-            _swapFee
+            poolData.swapFee
         );
         require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");
         require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
@@ -453,8 +411,8 @@ contract Pool is PoolToken, PoolMath {
         _lock_
         returns (uint256 tokenAmountIn, uint256 spotPriceAfter)
     {
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
 
         Record storage inRecord = _records[address(tokenIn)];
         Record storage outRecord = _records[address(tokenOut)];
@@ -469,7 +427,7 @@ contract Pool is PoolToken, PoolMath {
             inRecord.denorm,
             outRecord.balance,
             outRecord.denorm,
-            _swapFee
+            poolData.swapFee
         );
         require(spotPriceBefore <= maxPrice, "ERR_BAD_LIMIT_PRICE");
 
@@ -479,7 +437,7 @@ contract Pool is PoolToken, PoolMath {
             outRecord.balance,
             outRecord.denorm,
             tokenAmountOut,
-            _swapFee
+            poolData.swapFee
         );
         require(tokenAmountIn <= maxAmountIn, "ERR_LIMIT_IN");
 
@@ -491,7 +449,7 @@ contract Pool is PoolToken, PoolMath {
             inRecord.denorm,
             outRecord.balance,
             outRecord.denorm,
-            _swapFee
+            poolData.swapFee
         );
         require(spotPriceAfter >= spotPriceBefore, "ERR_MATH_APPROX");
         require(spotPriceAfter <= maxPrice, "ERR_LIMIT_PRICE");
@@ -513,8 +471,8 @@ contract Pool is PoolToken, PoolMath {
         uint256 tokenAmountIn,
         uint256 minPoolAmountOut
     ) external _logs_ _lock_ returns (uint256 poolAmountOut) {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
         require(
             tokenAmountIn <= mul(_records[tokenIn].balance, MAX_IN_RATIO),
             "ERR_MAX_IN_RATIO"
@@ -528,7 +486,7 @@ contract Pool is PoolToken, PoolMath {
             _totalSupply,
             _totalWeight,
             tokenAmountIn,
-            _swapFee
+            poolData.swapFee
         );
 
         require(poolAmountOut >= minPoolAmountOut, "ERR_LIMIT_OUT");
@@ -549,8 +507,8 @@ contract Pool is PoolToken, PoolMath {
         uint256 poolAmountOut,
         uint256 maxAmountIn
     ) external _logs_ _lock_ returns (uint256 tokenAmountIn) {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenIn].bound, "ERR_NOT_BOUND");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
+        require(_records[tokenIn].bound == 2, "ERR_NOT_BOUND");
 
         Record storage inRecord = _records[tokenIn];
 
@@ -560,7 +518,7 @@ contract Pool is PoolToken, PoolMath {
             _totalSupply,
             _totalWeight,
             poolAmountOut,
-            _swapFee
+            poolData.swapFee
         );
 
         require(tokenAmountIn != 0, "ERR_MATH_APPROX");
@@ -587,8 +545,8 @@ contract Pool is PoolToken, PoolMath {
         uint256 poolAmountIn,
         uint256 minAmountOut
     ) external _logs_ _lock_ returns (uint256 tokenAmountOut) {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
 
         Record storage outRecord = _records[tokenOut];
 
@@ -598,7 +556,7 @@ contract Pool is PoolToken, PoolMath {
             _totalSupply,
             _totalWeight,
             poolAmountIn,
-            _swapFee
+            poolData.swapFee
         );
 
         require(tokenAmountOut >= minAmountOut, "ERR_LIMIT_OUT");
@@ -616,7 +574,7 @@ contract Pool is PoolToken, PoolMath {
 
         _pullPoolShare(msg.sender, poolAmountIn);
         _burnPoolShare(sub(poolAmountIn, exitFee));
-        _pushPoolShare(_factory, exitFee);
+        _pushPoolShare(address(poolData.factory), exitFee);
         _pushUnderlying(tokenOut, msg.sender, tokenAmountOut);
 
         return tokenAmountOut;
@@ -627,8 +585,8 @@ contract Pool is PoolToken, PoolMath {
         uint256 tokenAmountOut,
         uint256 maxPoolAmountIn
     ) external _logs_ _lock_ returns (uint256 poolAmountIn) {
-        require(_finalized, "ERR_NOT_FINALIZED");
-        require(_records[tokenOut].bound, "ERR_NOT_BOUND");
+        require(poolData.finalized == 2, "ERR_NOT_FINALIZED");
+        require(_records[tokenOut].bound == 2, "ERR_NOT_BOUND");
         require(
             tokenAmountOut <= mul(_records[tokenOut].balance, MAX_OUT_RATIO),
             "ERR_MAX_OUT_RATIO"
@@ -642,7 +600,7 @@ contract Pool is PoolToken, PoolMath {
             _totalSupply,
             _totalWeight,
             tokenAmountOut,
-            _swapFee
+            poolData.swapFee
         );
 
         require(poolAmountIn != 0, "ERR_MATH_APPROX");
@@ -656,7 +614,7 @@ contract Pool is PoolToken, PoolMath {
 
         _pullPoolShare(msg.sender, poolAmountIn);
         _burnPoolShare(sub(poolAmountIn, exitFee));
-        _pushPoolShare(_factory, exitFee);
+        _pushPoolShare(address(poolData.factory), exitFee);
         _pushUnderlying(tokenOut, msg.sender, tokenAmountOut);
 
         return poolAmountIn;
@@ -664,7 +622,7 @@ contract Pool is PoolToken, PoolMath {
 
     // ==
     // 'Underlying' token-manipulation functions make external calls but are NOT locked
-    // You must `_lock_` or otherwise ensure reentry-safety
+    // You must `_lock_` or otherwise ensure reentry-safety on functions that use these.
 
     function _pullUnderlying(
         address erc20,
@@ -698,5 +656,48 @@ contract Pool is PoolToken, PoolMath {
 
     function _burnPoolShare(uint256 amount) internal {
         _burn(amount);
+    }
+
+        event Swap(
+        address indexed caller,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 tokenAmountIn,
+        uint256 tokenAmountOut
+    );
+
+    event Join(
+        address indexed caller,
+        address indexed tokenIn,
+        uint256 tokenAmountIn
+    );
+
+    event Exit(
+        address indexed caller,
+        address indexed tokenOut,
+        uint256 tokenAmountOut
+    );
+
+    event Call(
+        bytes4 indexed sig,
+        address indexed caller,
+        bytes data
+    ) anonymous;
+
+    modifier _logs_() {
+        emit Call(msg.sig, msg.sender, msg.data);
+        _;
+    }
+
+    modifier _lock_() {
+        require(poolData.mutex == 1, "ERR_REENTRY");
+        poolData.mutex = 2;
+        _;
+        poolData.mutex = 1;
+    }
+
+    modifier _viewlock_() {
+        require(poolData.mutex == 1, "ERR_REENTRY");
+        _;
     }
 }
