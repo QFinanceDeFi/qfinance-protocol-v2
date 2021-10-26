@@ -32,7 +32,7 @@ contract WrapRegistry {
     /**
      * @dev Separate contract to calculate rates
      */
-    IInterestRateModel private interestRateModel = IInterestRateModel(address(0));
+    IInterestRateModel private interestRateModel;
 
     /**
      * @dev List of user's entered markets.
