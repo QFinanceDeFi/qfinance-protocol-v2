@@ -10,6 +10,11 @@ import "../libraries/SafeERC20.sol";
 import "../libraries/Context.sol";
 import "./QPoolDepositTokenV2.sol";
 
+/**
+ * @dev This contract is the base contract for static QPools (i.e. non AMM pools). This contract is mostly complete
+ * but still requires in depth testing and audit. The rebalancing functionality will occur via a separate contract
+ * acting as a proxy to communicate with Chainlink Keepers. This code will be added soon.
+ */
 contract QPoolV2 is Context, QPoolDepositTokenV2 {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;

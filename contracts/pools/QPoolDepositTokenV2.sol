@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: MIT
-// QFinance Contracts V2.0.1.
+// QFinance Contracts V2.0.1
 
 pragma solidity ^0.8.0;
 
 import "../interfaces/IERC20.sol";
 import "../libraries/Context.sol";
 
+/**
+ * @dev This contract is an ERC20-compliant contract for Pool Deposit Tokens.
+ */
 abstract contract QPoolDepositTokenV2 is Context {
 
     // Standard ERC20 information
