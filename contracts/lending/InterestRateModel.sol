@@ -8,8 +8,10 @@ import "../libraries/SafeMath.sol";
 
 /**
  * @title Compound's JumpRateModel Contract V2
- * @author Compound (modified by Dharma Labs)
- * @notice Version 2 modifies Version 1 by enabling updateable parameters.
+ * @author Compound (modified by QFinance)
+ *
+ * This contract defines the interest rate model to be used in a lending market. This contract
+ * is instantiated when a new market is created and variables can be set per market.
  */
 contract InterestRateModel {
     using SafeMath for uint256;

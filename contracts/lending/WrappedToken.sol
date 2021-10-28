@@ -8,7 +8,10 @@ import "../utils/Context.sol";
 import "../interfaces/IInterestRateModel.sol";
 
 /**
- * @dev Customized version of ERC20 token contract. This version includes privileged public functions
+ * @title Wrapped ERC Contract
+ * @author QFinance
+ * 
+ * Customized version of ERC20 token contract. This version includes privileged public functions
  * for minting and burning tokens, which would otherwise be private functions. Rights to minting and burning
  * are granted exclusively to the `deployer`, which is always the WrapRegistry contract. This way, minting
  * and burning wrapped tokens is only possible via the WrapRegistry contract functions.

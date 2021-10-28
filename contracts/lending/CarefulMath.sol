@@ -5,7 +5,7 @@ pragma solidity ^0.8.0;
 
 /**
   * @title Careful Math
-  * @author Compound
+  * @author Compound (modified by QFinance)
   * @notice Derived from OpenZeppelin's SafeMath library
   *         https://github.com/OpenZeppelin/openzeppelin-solidity/blob/master/contracts/math/SafeMath.sol
   */

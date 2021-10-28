@@ -6,6 +6,13 @@ pragma solidity ^0.8.0;
 import "../interfaces/IERC20.sol";
 import "../interfaces/IPriceAggregator.sol";
 
+/**
+ * @title Price Oracle Index
+ * @author QFinance
+ *
+ * This contract registers oracle addresses for trading pairs and retrieves their prices.
+ * This contract should be privileged to prevent abuse from unauthorized users.
+ */
 contract PriceOracle {
 
     IPriceAggregator private _priceFeed;

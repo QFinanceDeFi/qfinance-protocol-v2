@@ -8,13 +8,13 @@ import "./WrappedToken.sol";
 import "../libraries/SafeMath.sol";
 
 /**
- * @dev Implementation of the wrapped token registry.
+ * @title Wrapped Token Registry Index
+ * @author QFinance
  *
  * This contract serves to receive tokens, deposit them, and returned wrapped version,
  * and vice versa. It will also register the token in a registry to ensure that only one
  * lending pool is created for a token, and to provide the wrapped version address.
  */
-
 contract WrapRegistry {
     using SafeMath for uint256;
 
