@@ -1,4 +1,4 @@
-# QFinance DEX with integrated lending/borrowing system
+# QFinance AIO DEX, Lending, and Investment Pools
 
 Development in progress. Documentation coming soon.
 
