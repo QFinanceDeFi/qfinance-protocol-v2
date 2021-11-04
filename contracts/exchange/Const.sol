@@ -3,7 +3,8 @@
 pragma solidity ^0.8.0;
 
 contract Const {
-    uint256 public constant ONE = 10**18;
+
+    uint256 public constant ONE = 10**18; // Normalize to 1e18
 
     uint256 public constant MIN_BOUND_TOKENS = 2;
     uint256 public constant MAX_BOUND_TOKENS = 8;
