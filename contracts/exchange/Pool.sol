@@ -32,9 +32,9 @@ contract Pool is PoolToken, PoolMath {
     constructor() {
         poolData.factory = uint160(msg.sender);
         poolData.swapFee = uint64(MIN_FEE);
-        poolData.mutex = uint8(1);
-        poolData.totalTokens = uint8(0);
-        poolData.finalized = uint8(1);
+        poolData.mutex = 1;
+        poolData.totalTokens = 0;
+        poolData.finalized = 1;
     }
 
     function isFinalized() external view returns (bool) {
