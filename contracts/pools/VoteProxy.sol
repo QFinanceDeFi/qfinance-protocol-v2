@@ -68,7 +68,7 @@ contract VoteProxy {
         Proposal storage proposal = _proposals[uint16(poolProposals)];
         uint256[] memory indices = new uint256[](proposal.totalTokens);
         for (uint i; i < proposal.totalTokens; i++) {
-            indices[i] = uint16(poolProposals << (16 * i)); // Shift to left and cut off the rest
+            indices[i] = uint16(poolProposals >> (16 * (i - 0))); // Shift to left and cut off the rest
         }
 
         return indices;
@@ -117,7 +117,7 @@ contract VoteProxy {
 
         uint updated = _totalProposals + 1;
 
-        _poolProposals[pool] = uint16(updated) << 0;
+        _poolProposals[pool] = uint16(updated);
 
         Proposal memory newProposal = Proposal({
             submitter: uint160(msg.sender),
